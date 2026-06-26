@@ -1,0 +1,17 @@
+[project]
+name = "test"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pymilvus[model]>=3.0.0",   # 去掉了[milvus-lite]，因为在 Windows 上会被忽略
+    "milvus-lite>=3.0.0",       # 关键！直接将支持 Windows 的最新纯 Python 版本声明为顶层依赖
+    "setuptools>=78.1.1,<82",
+    "transformers<5.0.0",
+    "openai>=2.43.0",
+    "requests>=2.34.2",
+    "tqdm>=4.68.2",
+    "langchain>=1.3.11",
+    "langchain-openai>=1.3.3",
+]
