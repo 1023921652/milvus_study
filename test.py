@@ -21,10 +21,6 @@ logging.basicConfig(
 logger = logging.getLogger("UnifiedRAGTest")
 
 # 1.2 Qwen 向量服务接口配置
-# API_KEY = os.getenv("EMBEDDING_API_KEY", "sk-a42163d874e74c41923259805c86a453")
-# BASE_URL = os.getenv("EMBEDDING_BASE_URL", "http://localhost:8001/v1")
-# MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "qwen/Qwen3-Embedding-4B")
-# VECTOR_DIM = int(os.getenv("EMBEDDING_VECTOR_DIM", "2560"))
 
 # 阿里云 API 密钥 (API Key)
 API_KEY = os.getenv("EMBEDDING_API_KEY", "sk-a42163d874e74c41923259805c86a453")
@@ -34,12 +30,11 @@ VECTOR_DIM = int(os.getenv("EMBEDDING_VECTOR_DIM", "2048"))
 
 
 # 1.3 检索机制控制参数
-TOP_K_CHUNKS_PER_DOC = int(os.getenv("TOP_K_CHUNKS_PER_DOC", "2"))
+TOP_K_CHUNKS_PER_DOC = int(os.getenv("TOP_K_CHUNKS_PER_DOC", "3"))
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.55"))
 SEARCH_LIMIT = int(os.getenv("SEARCH_LIMIT", "10"))
 
 # 1.4 Milvus 数据库连接配置
-# MILVUS_URI = os.getenv("MILVUS_URI", "http://172.29.97.126:32297")
 MILVUS_URI = os.getenv("MILVUS_URI", "http://localhost:19530")
 MILVUS_TOKEN = os.getenv("MILVUS_TOKEN", "root:Milvus")
 COLLECTION_NAME = os.getenv("MILVUS_COLLECTION_NAME", "wiki_documents_unified_parent_child")
@@ -51,7 +46,6 @@ PARENT_CHUNK_SUMMARY_MAX_LENGTH = int(os.getenv("PARENT_CHUNK_SUMMARY_MAX_LENGTH
 CHILD_PARAGRAPH_MAX_LENGTH = int(os.getenv("CHILD_PARAGRAPH_MAX_LENGTH", "2048"))
 DOCUMENT_TITLE_MAX_LENGTH = int(os.getenv("DOCUMENT_TITLE_MAX_LENGTH", "512"))
 GLOBAL_SUMMARY_MAX_LENGTH = int(os.getenv("GLOBAL_SUMMARY_MAX_LENGTH", "16384"))
-# 如果超出容量限制，应该将该文章自动切分为“卷1”、“卷2”并作为两个实体（Row）插入。
 # 一个文档最大包含多少个段落
 PARENT_CHUNKS_MAX_CAPACITY = int(os.getenv("PARENT_CHUNKS_MAX_CAPACITY", "100"))
 # 一个文档最大包含多少chunk
@@ -72,7 +66,7 @@ GENERATE_SUMMARY_MAX_LEN = int(os.getenv("GENERATE_SUMMARY_MAX_LEN", "150"))
 GLOBAL_SUMMARY_MAX_LEN = int(os.getenv("GLOBAL_SUMMARY_MAX_LEN", "300"))
 
 # 1.9 检索测试意图配置 (允许通过 JSON 字符串进行环境覆盖)
-DEFAULT_QUERY_CHUNKS = '["Instruct: 查询相关概念\\nQuery: 碳中和目标的出路"]'
+DEFAULT_QUERY_CHUNKS = '["Instruct: 查询相关概念\\nQuery: 云端大模型参数建议多少", "Instruct: 查询相关概念\\nQuery: 什么可以阻挡太阳风"]'
 QUERY_CHUNKS_JSON = os.getenv("QUERY_CHUNKS", DEFAULT_QUERY_CHUNKS)
 try:
     query_chunks = json.loads(QUERY_CHUNKS_JSON)
@@ -87,7 +81,7 @@ embeddings = OpenAIEmbeddings(
     base_url=BASE_URL,
     model=MODEL_NAME,
     check_embedding_ctx_length=False,  # 关闭本地 tiktoken 校验，避免非 OpenAI 模型冲突
-    dimensions=VECTOR_DIM , # 强制约束输出维度与 Milvus 一致
+    dimensions=VECTOR_DIM, # 强制约束输出维度与 Milvus 一致
     # text-embedding-v4 模型单次 API 请求支持的文本列表长度（即 Batch Size）最大不能超过 10
     chunk_size=10
 )
@@ -310,6 +304,7 @@ def run_retrieval_test(client):
         limit=SEARCH_LIMIT,
         output_fields=["title", "total_char_count", "summary", "parent_chunks", "paragraphs"]
     )
+
     logger.info("\n" + "=" * 40 + " [检索结果与父子上下文还原] " + "=" * 40)
 
     # 【优化点 4：归一化查询向量矩阵 (Q, D)，用于后续批量相乘】

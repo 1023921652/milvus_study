@@ -72,7 +72,7 @@ GENERATE_SUMMARY_MAX_LEN = int(os.getenv("GENERATE_SUMMARY_MAX_LEN", "150"))
 GLOBAL_SUMMARY_MAX_LEN = int(os.getenv("GLOBAL_SUMMARY_MAX_LEN", "300"))
 
 # 1.9 检索测试意图配置 (允许通过 JSON 字符串进行环境覆盖)
-DEFAULT_QUERY_CHUNKS = '["Instruct: 查询相关概念\\nQuery: 碳中和目标的出路"]'
+DEFAULT_QUERY_CHUNKS = '["Instruct: 查询相关概念\\nQuery: 碳中和目标的出路", "Instruct: 查询相关概念\\nQuery: 什么可以阻挡太阳风"]'
 QUERY_CHUNKS_JSON = os.getenv("QUERY_CHUNKS", DEFAULT_QUERY_CHUNKS)
 try:
     query_chunks = json.loads(QUERY_CHUNKS_JSON)

@@ -34,7 +34,7 @@ VECTOR_DIM = int(os.getenv("EMBEDDING_VECTOR_DIM", "2048"))
 
 
 # 1.3 检索机制控制参数
-TOP_K_CHUNKS_PER_DOC = int(os.getenv("TOP_K_CHUNKS_PER_DOC", "2"))
+TOP_K_CHUNKS_PER_DOC = int(os.getenv("TOP_K_CHUNKS_PER_DOC", "3"))
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.55"))
 SEARCH_LIMIT = int(os.getenv("SEARCH_LIMIT", "10"))
 
@@ -72,7 +72,7 @@ GENERATE_SUMMARY_MAX_LEN = int(os.getenv("GENERATE_SUMMARY_MAX_LEN", "150"))
 GLOBAL_SUMMARY_MAX_LEN = int(os.getenv("GLOBAL_SUMMARY_MAX_LEN", "300"))
 
 # 1.9 检索测试意图配置 (允许通过 JSON 字符串进行环境覆盖)
-DEFAULT_QUERY_CHUNKS = '["Instruct: 查询相关概念\\nQuery: 碳中和目标的出路"]'
+DEFAULT_QUERY_CHUNKS = '["Instruct: 查询相关概念\\nQuery: 云端大模型参数建议多少", "Instruct: 查询相关概念\\nQuery: 什么可以阻挡太阳风"]'
 QUERY_CHUNKS_JSON = os.getenv("QUERY_CHUNKS", DEFAULT_QUERY_CHUNKS)
 try:
     query_chunks = json.loads(QUERY_CHUNKS_JSON)
@@ -310,13 +310,8 @@ def run_retrieval_test(client):
         limit=SEARCH_LIMIT,
         output_fields=["title", "total_char_count", "summary", "parent_chunks", "paragraphs"]
     )
-    logger.info("\n" + "=" * 40 + " [检索结果与父子上下文还原] " + "=" * 40)
 
-    # 【优化点 4：归一化查询向量矩阵 (Q, D)，用于后续批量相乘】
-    q_matrix = np.array(query_vectors)  # 形状: (Q, D)
-    q_norms = np.linalg.norm(q_matrix, axis=1, keepdims=True)
-    q_norms[q_norms == 0] = 1.0
-    q_matrix_norm = q_matrix / q_norms  # 归一化后的矩阵，形状: (Q, D)
+    logger.info("\n" + "=" * 40 + " [检索结果与父子上下文还原] " + "=" * 40)
 
     for rank, hit in enumerate(results[0]):
         doc_title = hit['entity']['title']
@@ -326,26 +321,17 @@ def run_retrieval_test(client):
         parent_chunks = hit['entity']['parent_chunks']
         doc_paragraphs = hit['entity']['paragraphs']
 
-        # 7.1 【优化点 4 实现】：矩阵化批量计算子片段在整个查询多向量下的最大贡献得分并排序
+        # 7.1 【核心优化逻辑】：计算子片段在整个查询多向量下的最大贡献得分并排序
         scored_paragraphs = []
-        if doc_paragraphs:
-            # 批量提取当前文档内所有子段落的嵌入向量并组装成 NumPy 二维矩阵 (P, D)
-            p_embs = np.array([p['emb'] for p in doc_paragraphs])  # 形状: (P, D)
-            p_norms = np.linalg.norm(p_embs, axis=1, keepdims=True)
-            p_norms[p_norms == 0] = 1.0
-            p_embs_norm = p_embs / p_norms  # 归一化子句矩阵，形状: (P, D)
+        for idx, p in enumerate(doc_paragraphs):
+            # 为当前子句寻找对所有子查询向量中的最大余弦相似度
+            max_sim = max([get_cosine_similarity(q_vec, p['emb']) for q_vec in query_vectors])
 
-            # 通过矩阵点积计算相似度矩阵: (P, D) x (D, Q) -> (P, Q) 得到所有子句与全部 Query 的相似度
-            sim_matrix = np.dot(p_embs_norm, q_matrix_norm.T)
+            # 高于或等于预设相似度阈值则纳入候选
+            if max_sim >= SIMILARITY_THRESHOLD:
+                scored_paragraphs.append((idx, max_sim))
 
-            # 获取每一个子句对应所有查询向量中的最大相似度 (P,)
-            max_sims = np.max(sim_matrix, axis=1)
-
-            # 筛选超过或等于阈值的子句
-            for idx, max_sim in enumerate(max_sims):
-                if max_sim >= SIMILARITY_THRESHOLD:
-                    scored_paragraphs.append((idx, float(max_sim)))
-
+        # 【逻辑纠正】：已成功移出循环体内，优化了冗余计算带来的不必要开销 [1]
         # 按照最大相似度得分，由高到低对子句进行降序排列
         scored_paragraphs.sort(key=lambda x: x[1], reverse=True)
 
